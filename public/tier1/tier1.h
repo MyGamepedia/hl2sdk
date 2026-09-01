@@ -99,8 +99,6 @@ public:
 		}
 		BaseClass::Shutdown( );
 	}
-
-	virtual AppSystemTier_t GetTier() { return APP_SYSTEM_TIER1; }
 };
 
 
