@@ -1301,9 +1301,10 @@ void CViewRender::Render( vrect_t *rect )
 		view2d.width			= rect->width;
 		view2d.height			= rect->height;
 
-		render->Push2DView( view2d, 0, NULL, GetFrustum() );
+		CMatRenderContextPtr pRenderContext( materials );
+		render->Push2DView( pRenderContext, view2d, 0, NULL, GetFrustum() );
 		render->VGui_Paint( PAINT_UIPANELS | PAINT_CURSOR );
-		render->PopView( GetFrustum() );
+		render->PopView( pRenderContext, GetFrustum() );
 	}
 
 

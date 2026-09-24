@@ -1063,7 +1063,7 @@ void CViewRender::DrawViewModels( const CViewSetup &view, bool drawViewmodel )
 		pRTDepth = g_pSourceVR->GetRenderTarget( (ISourceVirtualReality::VREye)(view.m_eStereoEye-1), ISourceVirtualReality::RT_Depth );
 	}
 
-	render->Push3DView( viewModelSetup, 0, pRTColor, GetFrustum(), pRTDepth );
+	render->Push3DView( pRenderContext, viewModelSetup, 0, pRTColor, GetFrustum(), pRTDepth );
 
 #ifdef PORTAL //the depth range hack doesn't work well enough for the portal mod (and messing with the depth hack values makes some models draw incorrectly)
 				//step up to a full depth clear if we're extremely close to a portal (in a portal environment)
@@ -1130,7 +1130,7 @@ void CViewRender::DrawViewModels( const CViewSetup &view, bool drawViewmodel )
 	if( bUseDepthHack )
 		pRenderContext->DepthRange( depthmin, depthmax );
 
-	render->PopView( GetFrustum() );
+	render->PopView( pRenderContext, GetFrustum() );
 
 	// Restore the matrices
 	pRenderContext->MatrixMode( MATERIAL_PROJECTION );
@@ -1822,11 +1822,13 @@ void CViewRender::SetupMain3DView( const CViewSetup &view, int &nClearFlags )
 		nClearFlags |= nDepthStencilFlags; // Add them back in if we're clearing color
 	}
 
+	CMatRenderContextPtr pRenderContext( materials );
+
 	// If we are using HDR, we render to the HDR full frame buffer texture
 	// instead of whatever was previously the render target
 	if( g_pMaterialSystemHardwareConfig->GetHDRType() == HDR_TYPE_FLOAT )
 	{
-		render->Push3DView( view, nClearFlags, GetFullFrameFrameBufferTexture( 0 ), GetFrustum() );
+		render->Push3DView( pRenderContext, view, nClearFlags, GetFullFrameFrameBufferTexture( 0 ), GetFrustum() );
 	}
 	else
 	{
@@ -1838,7 +1840,7 @@ void CViewRender::SetupMain3DView( const CViewSetup &view, int &nClearFlags )
 			pRTDepth = g_pSourceVR->GetRenderTarget( (ISourceVirtualReality::VREye)(view.m_eStereoEye-1), ISourceVirtualReality::RT_Depth );
 		}
 
-		render->Push3DView( view, nClearFlags, pRTColor, GetFrustum(), pRTDepth );
+		render->Push3DView( pRenderContext, view, nClearFlags, pRTColor, GetFrustum(), pRTDepth );
 	}
 
 	// If we didn't clear the depth here, we'll need to clear it later
@@ -1852,7 +1854,8 @@ void CViewRender::SetupMain3DView( const CViewSetup &view, int &nClearFlags )
 
 void CViewRender::CleanupMain3DView( const CViewSetup &view )
 {
-	render->PopView( GetFrustum() );
+	CMatRenderContextPtr pRenderContext( materials );
+	render->PopView( pRenderContext, GetFrustum() );
 }
 
 
@@ -2178,7 +2181,9 @@ void CViewRender::RenderView( const CViewSetup &view, int nClearFlags, int whatT
 	}
 
 	// Draw the 2D graphics
-	render->Push2DView( view, 0, saveRenderTarget, GetFrustum() );
+	pRenderContext.GetFrom( materials );
+	render->Push2DView( pRenderContext, view, 0, saveRenderTarget, GetFrustum() );
+	pRenderContext.SafeRelease();
 
 	Render2DEffectsPreHUD( view );
 
@@ -2338,7 +2343,9 @@ void CViewRender::RenderView( const CViewSetup &view, int nClearFlags, int whatT
 		CDebugViewRender::GenerateOverdrawForTesting();
 	}
 
-	render->PopView( GetFrustum() );
+	pRenderContext.GetFrom( materials );
+	render->PopView( pRenderContext, GetFrustum() );
+	pRenderContext.SafeRelease();
 	g_WorldListCache.Flush();
 }
 
@@ -2909,9 +2916,9 @@ void CViewRender::ViewDrawScene_Intro( const CViewSetup &view, int nClearFlags, 
 		// Start view, clear frame/z buffer if necessary
 		SetupVis( playerView, visFlags );
 		
-		render->Push3DView( playerView, VIEW_CLEAR_COLOR | VIEW_CLEAR_DEPTH, NULL, GetFrustum() );
+		render->Push3DView( pRenderContext, playerView, VIEW_CLEAR_COLOR | VIEW_CLEAR_DEPTH, NULL, GetFrustum() );
 		DrawWorldAndEntities( true /* drawSkybox */, playerView, VIEW_CLEAR_COLOR | VIEW_CLEAR_DEPTH  );
-		render->PopView( GetFrustum() );
+		render->PopView( pRenderContext, GetFrustum() );
 
 		// Free shadow depth textures for use in future view
 		if ( r_flashlightdepthtexture.GetBool() )
@@ -3102,9 +3109,13 @@ bool CViewRender::DrawOneMonitor( ITexture *pRenderTarget, int cameraNum, C_Poin
 
 	// @MULTICORE (toml 8/11/2006): this should be a renderer....
 	Frustum frustum;
- 	render->Push3DView( monitorView, VIEW_CLEAR_DEPTH | VIEW_CLEAR_COLOR, pRenderTarget, (VPlane *)frustum );
+	CMatRenderContextPtr pRenderContext( materials );
+	render->Push3DView( pRenderContext, monitorView, VIEW_CLEAR_DEPTH | VIEW_CLEAR_COLOR, pRenderTarget, (VPlane *)frustum );
+	pRenderContext.SafeRelease();
 	ViewDrawScene( false, SKYBOX_2DSKYBOX_VISIBLE, monitorView, 0, VIEW_MONITOR );
- 	render->PopView( frustum );
+	pRenderContext.GetFrom( materials );
+	render->PopView( pRenderContext, frustum );
+	pRenderContext.SafeRelease();
 
 	// Reset the world fog parameters.
 	if ( fogEnabled )
@@ -3528,7 +3539,8 @@ void CRendering3dView::DrawWorld( float waterZAdjust )
 
 	unsigned long engineFlags = BuildEngineDrawWorldListFlags( m_DrawFlags );
 
-	render->DrawWorldLists( m_pWorldRenderList, engineFlags, waterZAdjust );
+	CMatRenderContextPtr pRenderContext( materials );
+	render->DrawWorldLists( pRenderContext, m_pWorldRenderList, engineFlags, waterZAdjust );
 }
 
 
@@ -4139,6 +4151,7 @@ void CRendering3dView::DrawOpaqueRenderables( ERenderDepthMode DepthMode )
 void CRendering3dView::DrawTranslucentWorldInLeaves( bool bShadowDepth )
 {
 	VPROF_BUDGET( "CViewRender::DrawTranslucentWorldInLeaves", VPROF_BUDGETGROUP_WORLD_RENDERING );
+	CMatRenderContextPtr pRenderContext( materials );
 	const ClientWorldListInfo_t& info = *m_pWorldListInfo;
 	for( int iCurLeafIndex = info.m_LeafCount - 1; iCurLeafIndex >= 0; iCurLeafIndex-- )
 	{
@@ -4147,7 +4160,7 @@ void CRendering3dView::DrawTranslucentWorldInLeaves( bool bShadowDepth )
 		if ( render->LeafContainsTranslucentSurfaces( m_pWorldRenderList, nActualLeafIndex, m_DrawFlags ) )
 		{
 			// Now draw the surfaces in this leaf
-			render->DrawTranslucentSurfaces( m_pWorldRenderList, nActualLeafIndex, m_DrawFlags, bShadowDepth );
+			render->DrawTranslucentSurfaces( pRenderContext, m_pWorldRenderList, nActualLeafIndex, m_DrawFlags, bShadowDepth );
 		}
 	}
 }
@@ -4159,6 +4172,7 @@ void CRendering3dView::DrawTranslucentWorldInLeaves( bool bShadowDepth )
 void CRendering3dView::DrawTranslucentWorldAndDetailPropsInLeaves( int iCurLeafIndex, int iFinalLeafIndex, int nEngineDrawFlags, int &nDetailLeafCount, LeafIndex_t* pDetailLeafList, bool bShadowDepth )
 {
 	VPROF_BUDGET( "CViewRender::DrawTranslucentWorldAndDetailPropsInLeaves", VPROF_BUDGETGROUP_WORLD_RENDERING );
+	CMatRenderContextPtr pRenderContext( materials );
 	const ClientWorldListInfo_t& info = *m_pWorldListInfo;
 	for( ; iCurLeafIndex >= iFinalLeafIndex; iCurLeafIndex-- )
 	{
@@ -4171,7 +4185,7 @@ void CRendering3dView::DrawTranslucentWorldAndDetailPropsInLeaves( int iCurLeafI
 			nDetailLeafCount = 0;
 
 			// Now draw the surfaces in this leaf
-			render->DrawTranslucentSurfaces( m_pWorldRenderList, nActualLeafIndex, nEngineDrawFlags, bShadowDepth );
+			render->DrawTranslucentSurfaces( pRenderContext, m_pWorldRenderList, nActualLeafIndex, nEngineDrawFlags, bShadowDepth );
 		}
 
 		// Queue up detail props that existed in this leaf
@@ -4764,16 +4778,16 @@ void CSkyboxView::DrawInternal( view_id_t iSkyBoxViewID, bool bInvokePreAndPostR
 	// cluster with sky.  Then we could just connect the areas to do our vis.
 	//m_bOverrideVisOrigin could hose us here, so call direct
 	render->ViewSetupVis( false, 1, &m_pSky3dParams->origin.Get() );
-	render->Push3DView( (*this), m_ClearFlags, pRenderTarget, GetFrustum(), pDepthTarget );
+	CMatRenderContextPtr pRenderContext( materials );
+	render->Push3DView( pRenderContext, (*this), m_ClearFlags, pRenderTarget, GetFrustum(), pDepthTarget );
 
 	// Store off view origin and angles
 	SetupCurrentView( origin, angles, iSkyBoxViewID );
 
 #if defined( _X360 )
-	CMatRenderContextPtr pRenderContext( materials );
 	pRenderContext->PushVertexShaderGPRAllocation( 32 );
-	pRenderContext.SafeRelease();
 #endif
+	pRenderContext.SafeRelease();
 
 	// Invoke pre-render methods
 	if ( bInvokePreAndPostRender )
@@ -4813,10 +4827,10 @@ void CSkyboxView::DrawInternal( view_id_t iSkyBoxViewID, bool bInvokePreAndPostR
 		FinishCurrentView();
 	}
 
-	render->PopView( GetFrustum() );
+	pRenderContext.GetFrom( materials );
+	render->PopView( pRenderContext, GetFrustum() );
 
 #if defined( _X360 )
-	pRenderContext.GetFrom( materials );
 	pRenderContext->PopVertexShaderGPRAllocation();
 #endif
 }
@@ -4971,17 +4985,17 @@ void CShadowDepthView::Draw()
 	pRenderContext->PushVertexShaderGPRAllocation( 112 ); //almost all work is done in vertex shaders for depth rendering, max out their threads
 #endif
 
-	pRenderContext.SafeRelease();
-
 	if( IsPC() )
 	{
-		render->Push3DView( (*this), VIEW_CLEAR_DEPTH, m_pRenderTarget, GetFrustum(), m_pDepthTexture );
+		render->Push3DView( pRenderContext, (*this), VIEW_CLEAR_DEPTH, m_pRenderTarget, GetFrustum(), m_pDepthTexture );
 	}
 	else if( IsX360() )
 	{
 		//for the 360, the dummy render target has a separate depth buffer which we Resolve() from afterward
-		render->Push3DView( (*this), VIEW_CLEAR_DEPTH, m_pRenderTarget, GetFrustum() );
+		render->Push3DView( pRenderContext, (*this), VIEW_CLEAR_DEPTH, m_pRenderTarget, GetFrustum() );
 	}
+
+	pRenderContext.SafeRelease();
 
 	SetupCurrentView( origin, angles, VIEW_SHADOW_DEPTH_TEXTURE );
 
@@ -5027,7 +5041,7 @@ void CShadowDepthView::Draw()
 		pRenderContext->CopyRenderTargetToTextureEx( m_pDepthTexture, -1, NULL, NULL );
 	}
 
-	render->PopView( GetFrustum() );
+	render->PopView( pRenderContext, GetFrustum() );
 
 #if defined( _X360 )
 	pRenderContext->PopVertexShaderGPRAllocation();
@@ -5191,7 +5205,7 @@ void CBaseWorldView::PushView( float waterHeight )
 		pRenderContext->SetHeightClipMode( clipMode );
 
 		// Have to re-set up the view since we reset the size
-		render->Push3DView( *this, m_ClearFlags, GetWaterRefractionTexture(), GetFrustum() );
+		render->Push3DView( pRenderContext, *this, m_ClearFlags, GetWaterRefractionTexture(), GetFrustum() );
 
 		return;
 	}
@@ -5211,7 +5225,7 @@ void CBaseWorldView::PushView( float waterHeight )
 		pRenderContext->SetHeightClipZ( waterHeight );
 		pRenderContext->SetHeightClipMode( clipMode );
 
-		render->Push3DView( *this, m_ClearFlags, pTexture, GetFrustum() );
+		render->Push3DView( pRenderContext, *this, m_ClearFlags, pTexture, GetFrustum() );
 
 		SetLightmapScaleForWater();
 		return;
@@ -5260,7 +5274,7 @@ void CBaseWorldView::PopView()
 			}
 		}
 
-		render->PopView( GetFrustum() );
+		render->PopView( pRenderContext, GetFrustum() );
 		if (SavedLinearLightMapScale.x>=0)
 		{
 			pRenderContext->SetToneMappingScaleLinear(SavedLinearLightMapScale);
@@ -5282,7 +5296,8 @@ void CBaseWorldView::DrawSetup( float waterHeight, int nSetupFlags, float waterZ
 
 	if ( bViewChanged )
 	{
-		render->Push3DView( *this, 0, NULL, GetFrustum() );
+		CMatRenderContextPtr pRenderContext( materials );
+		render->Push3DView( pRenderContext, *this, 0, NULL, GetFrustum() );
 	}
 
 	render->BeginUpdateLightmaps();
@@ -5302,7 +5317,8 @@ void CBaseWorldView::DrawSetup( float waterHeight, int nSetupFlags, float waterZ
 
 	if ( bViewChanged )
 	{
-		render->PopView( GetFrustum() );
+		CMatRenderContextPtr pRenderContext( materials );
+		render->PopView( pRenderContext, GetFrustum() );
 	}
 
 #ifdef TF_CLIENT_DLL
@@ -5462,16 +5478,16 @@ void CBaseWorldView::SSAO_DepthPass()
 	pRenderContext->PushVertexShaderGPRAllocation( 112 ); //almost all work is done in vertex shaders for depth rendering, max out their threads
 #endif
 
-	pRenderContext.SafeRelease();
-
 	if( IsPC() )
 	{
-		render->Push3DView( (*this), VIEW_CLEAR_DEPTH | VIEW_CLEAR_COLOR, pSSAO, GetFrustum() );
+		render->Push3DView( pRenderContext, (*this), VIEW_CLEAR_DEPTH | VIEW_CLEAR_COLOR, pSSAO, GetFrustum() );
 	}
 	else if( IsX360() )
 	{
-		render->Push3DView( (*this), VIEW_CLEAR_DEPTH | VIEW_CLEAR_COLOR, pSSAO, GetFrustum() );
+		render->Push3DView( pRenderContext, (*this), VIEW_CLEAR_DEPTH | VIEW_CLEAR_COLOR, pSSAO, GetFrustum() );
 	}
+
+	pRenderContext.SafeRelease();
 
 	MDLCACHE_CRITICAL_SECTION();
 
@@ -5513,7 +5529,7 @@ void CBaseWorldView::SSAO_DepthPass()
 		pRenderContext->CopyRenderTargetToTextureEx( NULL, -1, NULL, NULL );
 	}
 
-	render->PopView( GetFrustum() );
+	render->PopView( pRenderContext, GetFrustum() );
 
 #if defined( _X360 )
 	pRenderContext->PopVertexShaderGPRAllocation();
@@ -6159,13 +6175,13 @@ bool CReflectiveGlassView::AdjustView( float flWaterHeight )
 
 void CReflectiveGlassView::PushView( float waterHeight )
 {
-	render->Push3DView( *this, m_ClearFlags, GetWaterReflectionTexture(), GetFrustum() );
+	CMatRenderContextPtr pRenderContext( materials );
+	render->Push3DView( pRenderContext, *this, m_ClearFlags, GetWaterReflectionTexture(), GetFrustum() );
 	 
 	Vector4D plane;
 	VectorCopy( m_ReflectionPlane.normal, plane.AsVector3D() );
 	plane.w = m_ReflectionPlane.dist + 0.1f;
 
-	CMatRenderContextPtr pRenderContext( materials );
 	pRenderContext->PushCustomClipPlane( plane.Base() );
 }
 
@@ -6173,7 +6189,7 @@ void CReflectiveGlassView::PopView( )
 {
 	CMatRenderContextPtr pRenderContext( materials );
 	pRenderContext->PopCustomClipPlane( );
-	render->PopView( GetFrustum() );
+	render->PopView( pRenderContext, GetFrustum() );
 }
 
 
@@ -6226,13 +6242,13 @@ bool CRefractiveGlassView::AdjustView( float flWaterHeight )
 
 void CRefractiveGlassView::PushView( float waterHeight )
 {
-	render->Push3DView( *this, m_ClearFlags, GetWaterRefractionTexture(), GetFrustum() );
+	CMatRenderContextPtr pRenderContext( materials );
+	render->Push3DView( pRenderContext, *this, m_ClearFlags, GetWaterRefractionTexture(), GetFrustum() );
 
 	Vector4D plane;
 	VectorMultiply( m_ReflectionPlane.normal, -1, plane.AsVector3D() );
 	plane.w = -m_ReflectionPlane.dist + 0.1f;
 
-	CMatRenderContextPtr pRenderContext( materials );
 	pRenderContext->PushCustomClipPlane( plane.Base() );
 }
 
@@ -6241,7 +6257,7 @@ void CRefractiveGlassView::PopView( )
 {
 	CMatRenderContextPtr pRenderContext( materials );
 	pRenderContext->PopCustomClipPlane( );
-	render->PopView( GetFrustum() );
+	render->PopView( pRenderContext, GetFrustum() );
 }
 
 

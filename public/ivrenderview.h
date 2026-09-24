@@ -28,6 +28,8 @@ class IClientEntity;
 class IMaterial;
 struct model_t;
 class IClientRenderable;
+class IMatRenderContext;
+class CVolumeCuller;
 
 
 //-----------------------------------------------------------------------------
@@ -226,11 +228,14 @@ public:
 	virtual IWorldRenderList * CreateWorldList() = 0;
 
 	virtual void			BuildWorldLists( IWorldRenderList *pList, WorldListInfo_t* pInfo, int iForceFViewLeaf, const VisOverrideData_t* pVisData = NULL, bool bShadowDepth = false, float *pReflectionWaterHeight = NULL ) = 0;
-	virtual void			DrawWorldLists( IWorldRenderList *pList, unsigned long flags, float waterZAdjust ) = 0;
+	virtual void			DrawWorldLists( IMatRenderContext *pRenderContext, IWorldRenderList *pList, unsigned long flags, float waterZAdjust ) = 0;
 
 	// Optimization for top view
 	virtual void			DrawTopView( bool enable ) = 0;
+	virtual void			TopViewNoBackfaceCulling( bool bDisable ) = 0;
+	virtual void			TopViewNoVisCheck( bool bDisable ) = 0;
 	virtual void			TopViewBounds( Vector2D const& mins, Vector2D const& maxs ) = 0;
+	virtual void			SetTopViewVolumeCuller( const CVolumeCuller *pVolumeCuller ) = 0;
 
 	// Draw lights
 	virtual void			DrawLights( void ) = 0;
@@ -238,7 +243,7 @@ public:
 	virtual void			DrawMaskEntities( void ) = 0;
 
 	// Draw surfaces with alpha
-	virtual void			DrawTranslucentSurfaces( IWorldRenderList *pList, int sortIndex, unsigned long flags, bool bShadowDepth ) = 0;
+	virtual void			DrawTranslucentSurfaces( IMatRenderContext *pRenderContext, IWorldRenderList *pList, int sortIndex, unsigned long flags, bool bShadowDepth ) = 0;
 
 	// Draw Particles ( just draws the linefine for debugging map leaks )
 	virtual void			DrawLineFile( void ) = 0;
@@ -282,13 +287,13 @@ public:
 			unsigned char chAreaBits[MAX_AREA_STATE_BYTES],
 			unsigned char chAreaPortalBits[MAX_AREA_PORTAL_STATE_BYTES] ) = 0;
 
-	// See i
+	// Black Mesa uses slot 39 on both Windows and Linux.
 	virtual void			VGui_Paint( int mode ) = 0;
 
 	// Push, pop views (see PushViewFlags_t above for flags)
-	virtual void			Push3DView( const CViewSetup &view, int nFlags, ITexture* pRenderTarget, Frustum frustumPlanes ) = 0;
-	virtual void			Push2DView( const CViewSetup &view, int nFlags, ITexture* pRenderTarget, Frustum frustumPlanes ) = 0;
-	virtual void			PopView( Frustum frustumPlanes ) = 0;
+	virtual void			Push3DView( IMatRenderContext *pRenderContext, const CViewSetup &view, int nFlags, ITexture* pRenderTarget, Frustum frustumPlanes ) = 0;
+	virtual void			Push2DView( IMatRenderContext *pRenderContext, const CViewSetup &view, int nFlags, ITexture* pRenderTarget, Frustum frustumPlanes ) = 0;
+	virtual void			PopView( IMatRenderContext *pRenderContext, Frustum frustumPlanes ) = 0;
 
 	// Sets the main view
 	virtual void			SetMainView( const Vector &vecOrigin, const QAngle &angles ) = 0;
@@ -310,7 +315,8 @@ public:
 	virtual void			EndUpdateLightmaps( void ) = 0;
 	virtual void			OLD_SetOffCenterProjectionMatrix( float fov, float zNear, float zFar, float flAspectRatio, float flBottom, float flTop, float flLeft, float flRight ) = 0;
 	virtual void			OLD_SetProjectionMatrixOrtho( float left, float top, float right, float bottom, float zNear, float zFar ) = 0;
-	virtual void			Push3DView( const CViewSetup &view, int nFlags, ITexture* pRenderTarget, Frustum frustumPlanes, ITexture* pDepthTexture ) = 0;
+	// Keep this overload here: GCC uses declaration order; MSVC groups Push3DView overloads.
+	virtual void			Push3DView( IMatRenderContext *pRenderContext, const CViewSetup &view, int nFlags, ITexture* pRenderTarget, Frustum frustumPlanes, ITexture* pDepthTexture ) = 0;
 	virtual void			GetMatricesForView( const CViewSetup &view, VMatrix *pWorldToView, VMatrix *pViewToProjection, VMatrix *pWorldToProjection, VMatrix *pWorldToPixels ) = 0;
 	virtual void			DrawBrushModelEx( IClientEntity *baseentity, model_t *model, const Vector& origin, const QAngle& angles, DrawBrushModelMode_t mode ) = 0;
 };
