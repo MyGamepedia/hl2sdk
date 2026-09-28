@@ -143,7 +143,20 @@ class SendTable;
 // On the client .dll this creates a mapping between a classname and
 //  a client side class.  Probably could be templatized at some point.
 
+// Use two expansion layers so shared aliases such as CBaseGrenade ->
+// C_BaseGrenade are expanded before the ClientClass symbol is formed.
+#define INTERNAL_DECLARE_MAP_CLIENTCLASS( className ) \
+	INTERNAL_DECLARE_MAP_CLIENTCLASS_IMPL( className )
+#define INTERNAL_DECLARE_MAP_CLIENTCLASS_IMPL( className ) \
+	extern ClientClass __g_##className##ClientClass;
+
+#define INTERNAL_SET_MAP_CLIENTCLASS( className, localName ) \
+	INTERNAL_SET_MAP_CLIENTCLASS_IMPL( className, localName )
+#define INTERNAL_SET_MAP_CLIENTCLASS_IMPL( className, localName ) \
+	__g_##className##ClientClass.m_pMapClassname = localName;
+
 #define LINK_ENTITY_TO_CLASS( localName, className )						\
+	INTERNAL_DECLARE_MAP_CLIENTCLASS( className )							\
 	static C_BaseEntity *C##className##Factory( void )						\
 	{																		\
 		return static_cast< C_BaseEntity * >( new className );				\
@@ -152,6 +165,25 @@ class SendTable;
 	{																		\
 	public:																	\
 		C##localName##Foo( void )											\
+		{																	\
+			GetClassMap().Add( #localName, #className, sizeof( className ),	\
+				&C##className##Factory );									\
+			INTERNAL_SET_MAP_CLIENTCLASS( className, #localName )			\
+		}																	\
+	};																		\
+	static C##localName##Foo g_C##localName##Foo;
+
+// Purely client-side types participate in CClassMap but have no network
+// ClientClass object to annotate with a map classname.
+#define LINK_ENTITY_TO_CLASS_CLIENTONLY( localName, className )			\
+	static C_BaseEntity *C##className##Factory( void )						\
+	{																		\
+		return static_cast< C_BaseEntity * >( new className );				\
+	};																		\
+	class C##localName##Foo													\
+	{																		\
+	public:																	\
+		C##localName##Foo( void )										\
 		{																	\
 			GetClassMap().Add( #localName, #className, sizeof( className ),	\
 				&C##className##Factory );									\

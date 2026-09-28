@@ -33,6 +33,7 @@ class CMouthInfo;
 
 #include "iclientrenderable.h"
 #include "iclientnetworkable.h"
+#include <stddef.h>
 
 
 class ClientClass;
@@ -55,6 +56,7 @@ public:
 		m_pCreateFn		= createFn;
 		m_pCreateEventFn= createEventFn;
 		m_pRecvTable	= pRecvTable;
+		m_pMapClassname = NULL;
 		
 		// Link it in
 		m_pNext				= g_pClientClassHead;
@@ -73,7 +75,18 @@ public:
 	RecvTable				*m_pRecvTable;
 	ClientClass				*m_pNext;
 	int						m_ClassID;	// Managed by the engine.
+
+	// Map/gameplay entity classname (for example, "weapon_crowbar").
+	// This is distinct from m_pNetworkName and the concrete C++ type.
+	const char				*m_pMapClassname;
 };
+
+#if defined( _WIN32 ) && !defined( _WIN64 )
+static_assert( offsetof( ClientClass, m_pMapClassname ) == 0x18,
+	"Black Mesa ClientClass::m_pMapClassname ABI offset changed" );
+static_assert( sizeof( ClientClass ) == 0x1C,
+	"Black Mesa ClientClass ABI size changed" );
+#endif
 
 #define DECLARE_CLIENTCLASS() \
 	virtual int YouForgotToImplementOrDeclareClientClass();\
