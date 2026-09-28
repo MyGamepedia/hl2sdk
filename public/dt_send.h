@@ -79,15 +79,18 @@ public:
 	SendVarProxyFn m_Int8ToInt32;
 	SendVarProxyFn m_Int16ToInt32;
 	SendVarProxyFn m_Int32ToInt32;
-	SendVarProxyFn m_Int64ToInt64;
 
 	SendVarProxyFn m_UInt8ToInt32;
 	SendVarProxyFn m_UInt16ToInt32;
 	SendVarProxyFn m_UInt32ToInt32;
-	SendVarProxyFn m_UInt64ToInt64;
 
 	SendVarProxyFn m_FloatToFloat;
 	SendVarProxyFn m_VectorToVector;
+
+#ifdef SUPPORTS_INT64
+	SendVarProxyFn m_Int64ToInt64;
+	SendVarProxyFn m_UInt64ToInt64;
+#endif
 };
 	
 class CStandardSendProxies : public CStandardSendProxiesV1
@@ -96,8 +99,26 @@ public:
 	CStandardSendProxies();
 	
 	SendTableProxyFn m_DataTableToDataTable;
+	SendTableProxyFn m_SendLocalDataTable;
 	CNonModifiedPointerProxy **m_ppNonModifiedPointerProxies;
 };
+
+// Black Mesa x86 retail ABI (engine.dll):
+//   0x00 Int8ToInt32             0x0C UInt8ToInt32
+//   0x04 Int16ToInt32            0x10 UInt16ToInt32
+//   0x08 Int32ToInt32            0x14 UInt32ToInt32
+//   0x18 FloatToFloat            0x1C VectorToVector
+//   0x20 DataTableToDataTable    0x24 SendLocalDataTable
+//   0x28 ppNonModifiedPointerProxies
+// SUPPORTS_INT64 is not enabled by the retail Black Mesa ABI.
+#if defined( _WIN32 ) && !defined( _WIN64 ) && !defined( SUPPORTS_INT64 )
+static_assert( sizeof( CNonModifiedPointerProxy ) == 0x08,
+	"Black Mesa CNonModifiedPointerProxy ABI mismatch" );
+static_assert( sizeof( CStandardSendProxiesV1 ) == 0x20,
+	"Black Mesa CStandardSendProxiesV1 ABI mismatch" );
+static_assert( sizeof( CStandardSendProxies ) == 0x2C,
+	"Black Mesa CStandardSendProxies ABI mismatch" );
+#endif
 
 extern CStandardSendProxies g_StandardSendProxies;
 
@@ -304,6 +325,11 @@ private:
 	// Extra data bound to this property.
 	const void			*m_pExtraData;
 };
+
+#if defined( _WIN32 ) && !defined( _WIN64 )
+static_assert( sizeof( SendProp ) == 0x54,
+	"Black Mesa SendProp ABI mismatch" );
+#endif
 
 
 inline int SendProp::GetOffset() const
