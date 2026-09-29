@@ -41,6 +41,20 @@ public:
 	virtual int				AreaNum() const;
 	virtual PVSInfo_t*		GetPVSInfo();
 
+	// Black Mesa x86 retail stores the lazily-computed ServerClass cache at
+	// CServerNetworkProperty + 0x30. Runtime ServerClasses can initialize the
+	// existing cache before the entity is published to networking workers.
+	// These inline accessors do not change the class layout or its ABI.
+	inline void SetCachedServerClass( ServerClass *pServerClass )
+	{
+		m_pServerClass = pServerClass;
+	}
+
+	inline ServerClass *GetCachedServerClass() const
+	{
+		return m_pServerClass;
+	}
+
 public:
 	// Other public methods
 	void Init( CBaseEntity *pEntity );
