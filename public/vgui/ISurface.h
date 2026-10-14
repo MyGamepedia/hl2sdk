@@ -150,7 +150,9 @@ public:
 	virtual void DrawSetTextColor(Color col) = 0;
 	virtual void DrawSetTextPos(int x, int y) = 0;
 	virtual void DrawGetTextPos(int& x,int& y) = 0;
-	virtual void DrawPrintText(const wchar_t *text, int textLen, FontDrawType_t drawType = FONT_DRAW_DEFAULT ) = 0;
+	// Black Mesa: fourth argument is a boolean controlling text traversal.
+	// The default value is chosen for source compatibility; it cannot be recovered from PE.
+	virtual void DrawPrintText(const wchar_t *text, int textLen, FontDrawType_t drawType = FONT_DRAW_DEFAULT, bool bReverseText = false ) = 0;
 	virtual void DrawUnicodeChar(wchar_t wch, FontDrawType_t drawType = FONT_DRAW_DEFAULT ) = 0;
 
 	virtual void DrawFlushText() = 0;		// flushes any buffered text (for rendering optimizations)
@@ -175,7 +177,13 @@ public:
 	virtual bool IsTextureIDValid(int id) = 0;
 	virtual bool DeleteTextureByID(int id) = 0;
 
-	virtual int CreateNewTextureID( bool procedural = false ) = 0;
+	virtual int CreateNewTextureID( bool procedural = false, bool shareable = false ) = 0;
+
+	// Black Mesa texture-sharing extensions. The names below are reconstructed
+	// from the matching ITexture operations, not recovered original symbol names.
+	virtual void *GetShareableTextureHandle( int id ) = 0;
+	virtual uint32 CompareExchangeShareableTextureLock( int id, uint32 nOldValue, uint32 nNewValue ) = 0;
+	virtual uint32 LoadShareableTextureLock( int id ) = 0;
 
 	virtual void GetScreenSize(int &wide, int &tall) = 0;
 	virtual void SetAsTopMost(VPANEL panel, bool state) = 0;
@@ -293,9 +301,6 @@ public:
 	// gets the absolute coordinates of the screen (in windows space)
 	virtual void GetAbsoluteWindowBounds(int &x, int &y, int &wide, int &tall) = 0;
 
-	// gets the base resolution used in proportional mode
-	virtual void GetProportionalBase( int &width, int &height ) = 0;
-
 	virtual void CalculateMouseVisible() = 0;
 	virtual bool NeedKBInput() = 0;
 
@@ -350,7 +355,6 @@ public:
 	virtual void SetBitmapFontName( const char *pName, const char *pFontFilename ) = 0;
 	// gets the bitmap font filename
 	virtual const char *GetBitmapFontName( const char *pName ) = 0;
-	virtual void ClearTemporaryFontCache( void ) = 0;
 
 	virtual IImage *GetIconImageForFullPath( char const *pFullPath ) = 0;
 	virtual void DrawUnicodeString( const wchar_t *pwString, FontDrawType_t drawType = FONT_DRAW_DEFAULT ) = 0;
