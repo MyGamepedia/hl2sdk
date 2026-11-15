@@ -61,6 +61,9 @@ class CMouthInfo;
 class IConVar;
 class IClientEntity;
 class IClientNetworkable;
+class ICollideable;
+class CSteamAPIContext;
+class IWorkshop;
 
 //-----------------------------------------------------------------------------
 // Purpose: This data structure is filled in by the engine when the client .dll requests information about
@@ -188,12 +191,12 @@ struct OcclusionParams_t
 
 // change this when the new version is incompatable with the old
 #define VENGINE_CLIENT_INTERFACE_VERSION		"VEngineClient015"
-#define VENGINE_CLIENT_INTERFACE_VERSION_13		"VEngineClient013"
 
 //-----------------------------------------------------------------------------
 // Purpose: Interface exposed from the engine to the client .dll
+// Black Mesa VEngineClient015. Platform guards reflect the retail vtables.
 //-----------------------------------------------------------------------------
-abstract_class IVEngineClient013
+abstract_class IVEngineClient
 {
 public:
 	// Find the model's surfaces that intersect the given sphere.
@@ -272,6 +275,10 @@ public:
 	// Given the string pBinding which may be bound to a key, 
 	//  returns the string name of the key to which this string is bound. Returns NULL if no such binding exists
 	virtual	const char			*Key_LookupBinding( const char *pBinding ) = 0;
+#if defined( _WIN32 )
+	// Writes all matching key names to the destination buffer.
+	virtual void				Key_LookupBindings( const char *pBinding, char *pDest, int nDestLen ) = 0;
+#endif
 
 	// Given the name of the key "mouse1", "e", "tab", etc., return the string it is bound to "+jump", "impulse 50", etc.
 	virtual const char			*Key_BindingForKey( ButtonCode_t code ) = 0;
@@ -356,11 +363,10 @@ public:
 	// Get the name of the current map
 	virtual void GetChapterName( char *pchBuff, int iMaxLength ) = 0;
 	virtual char const	*GetLevelName( void ) = 0;
+	virtual char const	*GetLevelNameShort( void ) = 0;
 	virtual int	GetLevelVersion( void ) = 0;
-#if !defined( NO_VOICE )
 	// Obtain access to the voice tweaking API
 	virtual struct IVoiceTweak_s *GetVoiceTweakAPI( void ) = 0;
-#endif
 	// Tell engine stats gathering system that the rendering frame is beginning/ending
 	virtual void		EngineStats_BeginFrame( void ) = 0;
 	virtual void		EngineStats_EndFrame( void ) = 0;
@@ -427,8 +433,6 @@ public:
 	virtual bool		IsTakingScreenshot( void ) = 0;
 	// Is this a HLTV broadcast ?
 	virtual bool		IsHLTV( void ) = 0;
-	// Is this a Replay demo?
-	virtual bool		IsReplay( void ) = 0;
 	// is this level loaded as just the background to the main menu? (active, but unplayable)
 	virtual bool		IsLevelMainMenuBackground( void ) = 0;
 	// returns the name of the background level
@@ -530,8 +534,8 @@ public:
 	virtual void SetGamestatsData( CGamestatsData *pGamestatsData ) = 0;
 	virtual CGamestatsData *GetGamestatsData() = 0;
 
-#if defined( USE_SDL )
-	// we need to pull delta's from the cocoa mgr, the engine vectors this for us
+#if !defined( _WIN32 )
+	// Retail Linux has this slot even when callers are built without USE_SDL.
 	virtual void GetMouseDelta( int &x, int &y, bool bIgnoreNextMouseDelta = false ) = 0;
 #endif
 
@@ -553,6 +557,9 @@ public:
 	//  returns the string name of the key to which this string is bound. Returns NULL if no such binding exists
 	// Unlike Key_LookupBinding, leading '+' characters are not stripped from bindings.
 	virtual	const char			*Key_LookupBindingExact( const char *pBinding ) = 0;
+#if defined( _WIN32 )
+	virtual void				Key_LookupBindingsExact( const char *pBinding, char *pDest, int nDestLen ) = 0;
+#endif
 
 	virtual void			AddPhonemeFile( const char *pszPhonemeFile ) = 0;
 	virtual float			GetPausedExpireTime( void ) = 0;
@@ -560,11 +567,7 @@ public:
 	virtual bool			StartDemoRecording( const char *pszFilename, const char *pszFolder = NULL ) = 0;
 	virtual void			StopDemoRecording( void ) = 0;
 	virtual void			TakeScreenshot( const char *pszFilename, const char *pszFolder = NULL ) = 0;
-};
 
-abstract_class IVEngineClient : public IVEngineClient013
-{
-public:
 	virtual uint GetProtocolVersion() = 0;
 	virtual bool IsWindowedMode() = 0;
 
@@ -580,6 +583,29 @@ public:
 	virtual void DisconnectInternal() = 0;
 
 	virtual int GetInstancesRunningCount( ) = 0;
+
+	virtual void SolidMoved( IClientEntity *pSolidEnt, ICollideable *pSolidCollide, const Vector *pPrevAbsOrigin, bool accurateBboxTriggerChecks ) = 0;
+	virtual void TriggerMoved( IClientEntity *pTriggerEnt, bool accurateBboxTriggerChecks ) = 0;
+	virtual CSteamAPIContext *GetSteamAPIContext() = 0;
+
+private:
+	// Retail stub. Win32 slot 151 uses ret 0xC; the argument types are unknown.
+	virtual void BMS_Unknown151( uint32, uint32, uint32 ) = 0;
+
+public:
+	virtual void UpdateDAndELights() = 0;
+	virtual bool DoesLevelContainWater() const = 0;
+	virtual bool IsTransitioningToLoad() = 0;
+	virtual void GetStartupImage( char *pDest, int nDestLen ) = 0;
+	virtual void GetBackgroundImage( char *pDest, int nDestLen ) = 0;
+	virtual const char *GetSaveDirName() = 0;
+	virtual bool IsSecureServerAllowed() = 0;
+	virtual IWorkshop *GetWorkshop() = 0;
+	virtual bool IsBorderlessWindowedMode() = 0;
+#if defined( _WIN32 )
+	virtual const char *GetBaseDirectory() = 0;
+#endif
+	virtual bool IsInCommentaryMode() = 0;
 };
 
 

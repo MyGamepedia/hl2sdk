@@ -680,6 +680,14 @@ enum callbackflags
 	CALLBACK_MARKED_FOR_TEST	= 0x8000,	// debug -- marked object is being debugged
 };
 
+// Black Mesa x86 ABI: 81 methods after the virtual destructor. Verified against
+// two vphysics_srv.so builds and the installed vphysics.dll; see
+// docs/abi/IPhysicsObject.md and tests/iphysicsobject. MSVC uses one destructor
+// slot, GCC/Itanium uses two: IsStatic is slot 1/2, OutputDebugInfo is slot 81/82.
+// Use the engine-provided pointer directly; this interface has no data members.
+// Objects are owned by their IPhysicsEnvironment: destroy objects you create
+// through that environment, never with delete. Entity-owned objects retain
+// their entity's lifetime and must not be destroyed by an extension.
 abstract_class IPhysicsObject
 {
 public:
