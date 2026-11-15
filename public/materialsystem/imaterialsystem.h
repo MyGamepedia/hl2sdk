@@ -1070,9 +1070,10 @@ public:
 	// Contains context in so it can make decisions (i.e. if it's a model, ignore certain cheat parameters)
 	virtual IMaterial *			FindMaterialEx( char const* pMaterialName, const char *pTextureGroupName, int nContext, bool complain = true, const char *pComplainPrefix = NULL ) = 0;
 
-#ifdef DX_TO_GL_ABSTRACTION
+#if !defined( _WIN32 )
+	// The Linux material system reserves this slot regardless of caller build flags.
 	virtual void				DoStartupShaderPreloading( void ) = 0;
-#endif	
+#endif
 
 	// Sets the override sizes for all render target size tests. These replace the frame buffer size.
 	// Set them when you are rendering primarily to something larger than the frame buffer (as in VR mode).
@@ -1097,6 +1098,14 @@ public:
 		int w, int h, int mips, ImageFormat fmt, int srcBufferSize, byte *srcBits, int nFlags ) = 0;
 	virtual bool AddTextureCompositorTemplate( const char *pName, KeyValues *pTemplate, int nFlags ) = 0;
 	virtual bool VerifyTextureCompositorTemplates() = 0;
+
+#if defined( _WIN32 )
+	// Parallax-corrected cubemap volumes stored in maps/<map>.pcv.
+	virtual void LoadParallaxCubemapVolumes( const char *pFilename ) = 0;
+	virtual void SaveParallaxCubemapVolumes( const char *pFilename ) = 0;
+	virtual void UpdateParallaxCubemapVolume( const Vector &origin, const Vector &mins, const Vector &maxs ) = 0;
+	virtual void LookupParallaxCubemapVolume( const Vector &origin, Vector &mins, Vector &maxs ) = 0;
+#endif
 };
 
 
