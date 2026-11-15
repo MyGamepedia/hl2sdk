@@ -95,6 +95,7 @@ public:
 
 	// Determine the color modulation amount
 	virtual void	GetColorModulation( float* color ) = 0;
+	virtual float	GetAlphaModulation() { return 1.0f; }
 
 	// Returns false if the entity shouldn't be drawn due to LOD. 
 	// (NOTE: This is no longer used/supported, but kept in the vtable for backwards compat)
@@ -170,6 +171,11 @@ public:
 	virtual void	RecordToolMessage() = 0;
 
 	virtual bool	IgnoresZBuffer( void ) const = 0;
+
+	// Provisional name. The output type and meaning of the return value are unknown.
+	// Client implementations return 0 without writing to pOut.
+	// CStaticProp writes a 32-bit zero through pOut and returns 0.
+	virtual int		QueryRenderableData_UNKNOWN46( void * /*pOut*/ ) { return 0; }
 };
 
 
