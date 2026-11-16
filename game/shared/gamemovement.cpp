@@ -14,6 +14,7 @@
 #include "decals.h"
 #include "coordsize.h"
 #include "rumble_shared.h"
+#include "tier1/smartptr.h"
 
 #if defined(HL2_DLL) || defined(HL2_CLIENT_DLL)
 	#include "hl_movedata.h"
@@ -622,7 +623,11 @@ CGameMovement::CGameMovement( void )
 	m_flWaterEntryTime	= 0;
 	m_nOnLadder			= 0;
 
-	mv					= NULL;
+	player = NULL;
+	mv = NULL;
+	m_bProcessingMovement = false;
+	m_bInStuckTest = false;
+	m_pTraceListData = NULL;
 
 	memset( m_flStuckCheckTime, 0, sizeof(m_flStuckCheckTime) );
 }
@@ -632,6 +637,8 @@ CGameMovement::CGameMovement( void )
 //-----------------------------------------------------------------------------
 CGameMovement::~CGameMovement( void )
 {
+	if ( m_pTraceListData )
+		enginetrace->FreeTraceListData( m_pTraceListData );
 }
 
 //-----------------------------------------------------------------------------
@@ -1133,6 +1140,7 @@ void CGameMovement::ReduceTimers( void )
 void CGameMovement::ProcessMovement( CBasePlayer *pPlayer, CMoveData *pMove )
 {
 	Assert( pMove && pPlayer );
+	CAutoPushPop<bool> processingMovement( m_bProcessingMovement, true );
 
 	float flStoreFrametime = gpGlobals->frametime;
 
@@ -1170,7 +1178,49 @@ void CGameMovement::ProcessMovement( CBasePlayer *pPlayer, CMoveData *pMove )
 	//This is probably not needed, but just in case.
 	gpGlobals->frametime = flStoreFrametime;
 
-// 	player = NULL;
+	if ( m_pTraceListData )
+		m_pTraceListData->Reset();
+}
+
+void CGameMovement::Reset( void )
+{
+	player = NULL;
+}
+
+bool CGameMovement::IsMovingPlayerStuck( void ) const
+{
+	return m_bProcessingMovement && !m_bInStuckTest && player && player->m_StuckLast > 0;
+}
+
+CBasePlayer *CGameMovement::GetMovingPlayer( void ) const
+{
+	return m_bProcessingMovement ? player : NULL;
+}
+
+void CGameMovement::UnblockPusher( CBasePlayer *, CBaseEntity * )
+{
+	// The shipped game leaves this hook empty.
+}
+
+void CGameMovement::SetupMovementBounds( CMoveData *pMove )
+{
+	if ( m_pTraceListData )
+		m_pTraceListData->Reset();
+
+	CBasePlayer *pPlayer = ToBasePlayer( CBaseEntity::Instance( pMove->m_nPlayerHandle ) );
+	if ( !pPlayer )
+		return;
+
+	if ( !m_pTraceListData )
+		m_pTraceListData = enginetrace->AllocTraceListData();
+	if ( !m_pTraceListData )
+		return;
+
+	const float flTravel = ( pMove->m_vecVelocity.Length() + pMove->m_flMaxSpeed ) * gpGlobals->frametime + 1.0f;
+	const Vector padding( flTravel, flTravel, flTravel + pPlayer->m_Local.m_flStepSize );
+	const Vector &origin = pMove->GetAbsOrigin();
+	enginetrace->SetupLeafAndEntityListBox( origin + VEC_HULL_MIN_SCALED( pPlayer ) - padding,
+		origin + VEC_HULL_MAX_SCALED( pPlayer ) + padding, m_pTraceListData );
 }
 
 void CGameMovement::StartTrackPredictionErrors( CBasePlayer *pPlayer )
@@ -1200,6 +1250,7 @@ void CGameMovement::FinishTrackPredictionErrors( CBasePlayer *pPlayer )
 void CGameMovement::FinishMove( void )
 {
 	mv->m_nOldButtons = mv->m_nButtons;
+	mv->m_flOldForwardMove = mv->m_flForwardMove;
 }
 
 #define PUNCH_DAMPING		9.0f		// bigger number makes the response more damped, smaller is less damped
@@ -4571,6 +4622,7 @@ void CGameMovement::PlayerMove( void )
 	{
 		if ( CheckInterval( STUCK ) )
 		{
+			CAutoPushPop<bool> stuckTest( m_bInStuckTest, true );
 			if ( CheckStuck() )
 			{
 				// Can't move, we're stuck
@@ -4913,11 +4965,17 @@ void CGameMovement::TracePlayerBBox( const Vector& start, const Vector& end, uns
 
 	Ray_t ray;
 	ray.Init( start, end, GetPlayerMins(), GetPlayerMaxs() );
-	UTIL_TraceRay( ray, fMask, mv->m_nPlayerHandle.Get(), collisionGroup, &pm );
-
+	TracePlayerHull( ray, fMask, collisionGroup, pm );
 }
 
-
+void CGameMovement::TracePlayerHull( const Ray_t &ray, unsigned int fMask, int collisionGroup, trace_t &trace )
+{
+	CTraceFilterSimple traceFilter( mv->m_nPlayerHandle.Get(), collisionGroup );
+	if ( m_bProcessingMovement && m_pTraceListData && !m_pTraceListData->IsEmpty() && m_pTraceListData->CanTraceRay( ray ) )
+		enginetrace->TraceRayAgainstLeafAndEntityList( ray, m_pTraceListData, fMask, &traceFilter, &trace );
+	else
+		enginetrace->TraceRay( ray, fMask, &traceFilter, &trace );
+}
 
 //-----------------------------------------------------------------------------
 // Purpose: overridded by game classes to limit results (to standable objects for example)
@@ -4928,6 +4986,6 @@ void  CGameMovement::TryTouchGround( const Vector& start, const Vector& end, con
 
 	Ray_t ray;
 	ray.Init( start, end, mins, maxs );
-	UTIL_TraceRay( ray, fMask, mv->m_nPlayerHandle.Get(), collisionGroup, &pm );
+	TracePlayerHull( ray, fMask, collisionGroup, pm );
 }
 

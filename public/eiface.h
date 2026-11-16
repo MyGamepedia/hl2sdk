@@ -741,6 +741,7 @@ public:
 
 	// Hook for player spawning
 	virtual void			ClientSpawned( edict_t *pPlayer ) = 0;
+	virtual void			ClientFullyConnect( edict_t *pEntity ) = 0;
 };
 
 typedef IServerGameClients IServerGameClients003;

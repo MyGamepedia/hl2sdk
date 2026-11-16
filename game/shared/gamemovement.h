@@ -33,6 +33,7 @@ enum
 };
 
 struct surfacedata_t;
+class ITraceListData;
 
 class CBasePlayer;
 
@@ -46,12 +47,18 @@ public:
 
 	virtual void	ProcessMovement( CBasePlayer *pPlayer, CMoveData *pMove );
 
+	virtual void	Reset( void ) OVERRIDE;
 	virtual void	StartTrackPredictionErrors( CBasePlayer *pPlayer );
 	virtual void	FinishTrackPredictionErrors( CBasePlayer *pPlayer );
 	virtual void	DiffPrint( PRINTF_FORMAT_STRING char const *fmt, ... );
 	virtual Vector	GetPlayerMins( bool ducked ) const;
 	virtual Vector	GetPlayerMaxs( bool ducked ) const;
 	virtual Vector	GetPlayerViewOffset( bool ducked ) const;
+
+	virtual bool	IsMovingPlayerStuck( void ) const OVERRIDE;
+	virtual CBasePlayer *GetMovingPlayer( void ) const OVERRIDE;
+	virtual void	UnblockPusher( CBasePlayer *pPlayer, CBaseEntity *pPusher ) OVERRIDE;
+	virtual void	SetupMovementBounds( CMoveData *pMove ) OVERRIDE;
 
 // For sanity checking getting stuck on CMoveData::SetAbsOrigin
 	virtual void	TracePlayerBBox( const Vector& start, const Vector& end, unsigned int fMask, int collisionGroup, trace_t& pm );
@@ -284,6 +291,12 @@ public:
 	void			ForceDuck( void );
 
 #endif
+
+private:
+	void TracePlayerHull( const Ray_t &ray, unsigned int fMask, int collisionGroup, trace_t &trace );
+	bool m_bProcessingMovement;
+	bool m_bInStuckTest;
+	ITraceListData *m_pTraceListData;
 };
 
 
