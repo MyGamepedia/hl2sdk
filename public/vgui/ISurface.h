@@ -117,6 +117,8 @@ struct IntRect
 //-----------------------------------------------------------------------------
 // Purpose: Wraps contextless windows system functions
 //-----------------------------------------------------------------------------
+// Black Mesa VGUI_Surface030 ABI: 157 Windows x86 vtable slots (0..156).
+// Audit, binary hashes and validation: docs/abi/ISurface.md.
 class ISurface : public IAppSystem
 {
 public:
@@ -355,6 +357,9 @@ public:
 	virtual void SetBitmapFontName( const char *pName, const char *pFontFilename ) = 0;
 	// gets the bitmap font filename
 	virtual const char *GetBitmapFontName( const char *pName ) = 0;
+	// VGUI_Surface030, Windows x86 slot 130. Present in both the rollback and
+	// November 2026 builds; removing it shifts DestroyTextureID (slot 146).
+	virtual void ClearTemporaryFontCache( void ) = 0;
 
 	virtual IImage *GetIconImageForFullPath( char const *pFullPath ) = 0;
 	virtual void DrawUnicodeString( const wchar_t *pwString, FontDrawType_t drawType = FONT_DRAW_DEFAULT ) = 0;
